@@ -3,7 +3,7 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const axios = require('axios');
 
 const supabaseRegion = process.env.SUPABASE_REGION;
-const supabaseEndpoint = process.env.SUPABASE_ENDPOINT; // Utilisez la variable d'environnement
+const supabaseEndpoint = process.env.SUPABASE_ENDPOINT;
 const supabaseBucket = process.env.SUPABASE_BUCKET;
 const supabaseAccessKeyId = process.env.SUPABASE_ACCESS_KEY_ID;
 const supabaseSecretAccessKey = process.env.SUPABASE_SECRET_ACCESS_KEY;
