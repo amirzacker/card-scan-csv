@@ -2,11 +2,14 @@
 import React, { useState } from "react";
 import api from "../api";
 import './style.css';
+import {QrReader} from 'react-qr-reader';
 
 const Dashboard = () => {
-  const [serialNumbers, setSerialNumbers] = useState([""]);
+  const [serialNumbers, setSerialNumbers] = useState([]);
   const [errors, setErrors] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanError, setScanError] = useState(null);
 
   const handleSerialNumberChange = (index, value) => {
     const newSerialNumbers = [...serialNumbers];
@@ -36,6 +39,36 @@ const Dashboard = () => {
     newErrors.splice(index, 1);
     setSerialNumbers(newSerialNumbers);
     setErrors(newErrors);
+  };
+
+  // Fonction appelée lorsqu'un QR code est détecté
+  const handleScan = (data) => {
+    if (data) {
+      // Extraire le numéro de série depuis l'URL du QR code
+      try {
+        const url = new URL(data);
+        const serial = url.searchParams.get('serialnumber');
+        if (serial) {
+          if (!serialNumbers.includes(serial)) {
+            setSerialNumbers([...serialNumbers, serial]);
+            setErrors([...errors, null]);
+            setShowScanner(false);
+            setScanError(null);
+          } else {
+            setScanError("Ce numéro de série est déjà dans la liste.");
+          }
+        } else {
+          setScanError("Le QR code ne contient pas de numéro de série valide.");
+        }
+      } catch (error) {
+        setScanError("Le QR code n'est pas une URL valide.");
+      }
+    }
+  };
+
+  const handleError = (err) => {
+    console.error(err);
+    setScanError("Erreur lors de l'accès à la caméra.");
   };
 
   const handleSubmit = async (e) => {
@@ -86,7 +119,7 @@ const Dashboard = () => {
       link.click();
       link.parentNode.removeChild(link);
 
-      setSerialNumbers([""]);
+      setSerialNumbers([]);
       setErrors([]);
     } catch (error) {
       console.error("Erreur lors de la génération du CSV :", error);
@@ -99,33 +132,50 @@ const Dashboard = () => {
   return (
       <div>
         <h2>Carte Pokémon</h2>
-        <form onSubmit={handleSubmit}>
-          {serialNumbers.map((serial, index) => (
-              <div key={index} className="serial-number-field">
-                <input
-                    type="text"
-                    placeholder="Numéro de série"
-                    value={serial}
-                    onChange={(e) => handleSerialNumberChange(index, e.target.value)}
-                />
-                {serialNumbers.length > 1 && (
+
+        {showScanner ? (
+            <div className="qr-scanner">
+              <QrReader
+                  delay={300}
+                  onError={handleError}
+                  onScan={handleScan}
+                  style={{ width: '100%' }}
+              />
+              <button type="button" onClick={() => setShowScanner(false)}>
+                Annuler le scan
+              </button>
+              {scanError && <div className="error">{scanError}</div>}
+            </div>
+        ) : (
+            <form onSubmit={handleSubmit}>
+              {serialNumbers.map((serial, index) => (
+                  <div key={index} className="serial-number-field">
+                    <input
+                        type="text"
+                        placeholder="Numéro de série"
+                        value={serial}
+                        onChange={(e) => handleSerialNumberChange(index, e.target.value)}
+                    />
                     <button
                         type="button"
                         onClick={() => removeSerialNumberField(index)}
                     >
                       Supprimer
                     </button>
-                )}
-                {errors[index] && <div className="error">{errors[index]}</div>}
-              </div>
-          ))}
-          <button type="button" onClick={addSerialNumberField}>
-            Ajouter un autre numéro
-          </button>
-          <button type="submit" disabled={isLoading}>
-            {isLoading ? "Génération en cours..." : "Générer le CSV"}
-          </button>
-        </form>
+                    {errors[index] && <div className="error">{errors[index]}</div>}
+                  </div>
+              ))}
+              <button type="button" onClick={addSerialNumberField}>
+                Ajouter un autre numéro
+              </button>
+              <button type="button" onClick={() => setShowScanner(true)}>
+                Scanner un QR code
+              </button>
+              <button type="submit" disabled={isLoading}>
+                {isLoading ? "Génération en cours..." : "Générer le CSV"}
+              </button>
+            </form>
+        )}
 
         {isLoading && (
             <div className="loading-indicator">

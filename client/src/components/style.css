@@ -1,5 +1,10 @@
-
 /* style.css */
+.qr-scanner {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
 .serial-number-field {
     display: flex;
     align-items: center;
@@ -17,22 +22,8 @@
 }
 
 button {
-    padding: 8px 12px;
-    margin-right: 10px;
-}
-
-.loading-indicator {
-    margin-top: 20px;
-}
-
-.csv-download {
-    margin-top: 20px;
-}
-
-
-.loading-indicator {
-    margin-top: 20px;
-    font-style: italic;
+    padding: 10px 15px;
+    margin: 5px;
 }
 
 .error {
@@ -41,3 +32,6 @@ button {
     margin-top: 5px;
 }
 
+.loading-indicator {
+    margin-top: 20px;
+}
