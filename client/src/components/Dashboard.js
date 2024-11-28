@@ -1,8 +1,8 @@
 // Dashboard.js
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "../api";
 import './style.css';
-import {QrReader} from 'react-qr-reader';
+import QrScanner from 'qr-scanner';
 
 const Dashboard = () => {
   const [serialNumbers, setSerialNumbers] = useState([]);
@@ -10,6 +10,81 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanError, setScanError] = useState(null);
+
+  // Références pour le scanner QR
+  const scannerRef = useRef(null);
+  const videoRef = useRef(null);
+  const [qrOn, setQrOn] = useState(true);
+
+  // Fonction appelée lorsqu'un QR code est détecté
+  const onScanSuccess = (result) => {
+    if (result) {
+      const data = result.data;
+      // Extraire le numéro de série depuis l'URL du QR code
+      try {
+        const url = new URL(data);
+        const serial = url.searchParams.get('serialnumber');
+        if (serial) {
+          if (!serialNumbers.includes(serial)) {
+            setSerialNumbers([...serialNumbers, serial]);
+            setErrors([...errors, null]);
+            setShowScanner(false);
+            setScanError(null);
+          } else {
+            setScanError("Ce numéro de série est déjà dans la liste.");
+          }
+        } else {
+          setScanError("Le QR code ne contient pas de numéro de série valide.");
+        }
+      } catch (error) {
+        setScanError("Le QR code n'est pas une URL valide.");
+      }
+    }
+  };
+
+  // Fonction appelée en cas d'échec du scan
+  const onScanFail = (error) => {
+    console.error(error);
+    setScanError("Erreur lors de la lecture du QR code.");
+  };
+
+  useEffect(() => {
+    if (showScanner && videoRef.current) {
+      // Instancier le scanner QR
+      scannerRef.current = new QrScanner(
+          videoRef.current,
+          onScanSuccess,
+          {
+            onDecodeError: onScanFail,
+            highlightScanRegion: true,
+            preferredCamera: 'environment', // Utiliser la caméra arrière
+          }
+      );
+
+      // Démarrer le scanner QR
+      scannerRef.current.start().catch((err) => {
+        console.error(err);
+        setQrOn(false);
+      });
+    }
+
+    // Nettoyer à la fermeture du scanner
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop();
+        scannerRef.current.destroy();
+        scannerRef.current = null;
+      }
+    };
+  }, [showScanner]);
+
+  useEffect(() => {
+    if (!qrOn) {
+      alert(
+          "La caméra est bloquée ou inaccessible. Veuillez autoriser l'accès à la caméra dans les permissions de votre navigateur et recharger la page."
+      );
+    }
+  }, [qrOn]);
 
   const handleSerialNumberChange = (index, value) => {
     const newSerialNumbers = [...serialNumbers];
@@ -39,36 +114,6 @@ const Dashboard = () => {
     newErrors.splice(index, 1);
     setSerialNumbers(newSerialNumbers);
     setErrors(newErrors);
-  };
-
-  // Fonction appelée lorsqu'un QR code est détecté
-  const handleScan = (data) => {
-    if (data) {
-      // Extraire le numéro de série depuis l'URL du QR code
-      try {
-        const url = new URL(data);
-        const serial = url.searchParams.get('serialnumber');
-        if (serial) {
-          if (!serialNumbers.includes(serial)) {
-            setSerialNumbers([...serialNumbers, serial]);
-            setErrors([...errors, null]);
-            setShowScanner(false);
-            setScanError(null);
-          } else {
-            setScanError("Ce numéro de série est déjà dans la liste.");
-          }
-        } else {
-          setScanError("Le QR code ne contient pas de numéro de série valide.");
-        }
-      } catch (error) {
-        setScanError("Le QR code n'est pas une URL valide.");
-      }
-    }
-  };
-
-  const handleError = (err) => {
-    console.error(err);
-    setScanError("Erreur lors de l'accès à la caméra.");
   };
 
   const handleSubmit = async (e) => {
@@ -117,7 +162,7 @@ const Dashboard = () => {
       link.setAttribute("download", fileName);
       document.body.appendChild(link);
       link.click();
-      link.parentNode.removeChild(link);
+      document.body.removeChild(link);
 
       setSerialNumbers([]);
       setErrors([]);
@@ -134,13 +179,8 @@ const Dashboard = () => {
         <h2>Carte Pokémon</h2>
 
         {showScanner ? (
-            <div className="qr-scanner">
-              <QrReader
-                  delay={300}
-                  onError={handleError}
-                  onScan={handleScan}
-                  style={{ width: '100%' }}
-              />
+            <div className="qr-reader">
+              <video ref={videoRef} style={{ width: '100%' }} />
               <button type="button" onClick={() => setShowScanner(false)}>
                 Annuler le scan
               </button>
