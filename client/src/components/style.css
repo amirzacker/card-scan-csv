@@ -1,0 +1,43 @@
+
+/* style.css */
+.serial-number-field {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.serial-number-field input {
+    flex: 1;
+    padding: 8px;
+    margin-right: 10px;
+}
+
+.serial-number-field button {
+    padding: 8px 12px;
+}
+
+button {
+    padding: 8px 12px;
+    margin-right: 10px;
+}
+
+.loading-indicator {
+    margin-top: 20px;
+}
+
+.csv-download {
+    margin-top: 20px;
+}
+
+
+.loading-indicator {
+    margin-top: 20px;
+    font-style: italic;
+}
+
+.error {
+    color: red;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
