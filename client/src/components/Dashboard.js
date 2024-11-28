@@ -8,11 +8,13 @@ const Dashboard = () => {
   const [errors, setErrors] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [scanError, setScanError] = useState(null);
+  const [scanMessage, setScanMessage] = useState(null);
+  const [scanMessageType, setScanMessageType] = useState('');
 
   const videoRef = useRef(null);
   const scannerRef = useRef(null);
 
+  // Cleanup scanner on component unmount
   useEffect(() => {
     return () => {
       if (scannerRef.current) {
@@ -22,12 +24,24 @@ const Dashboard = () => {
     };
   }, []);
 
-  const extractPSASerialNumber = (url) => {
-    // Extraction du numéro de série pour les URL PSA
+  const extractSerialNumber = (url) => {
+    // Regex pour PSA Card
     const psaMatch = url.match(/\/cert\/(\d+)\/?/);
-    return psaMatch ? psaMatch[1] : null;
+    if (psaMatch) return psaMatch[1];
+
+    // Regex pour Collectaura
+    const collectauraMatch = url.match(/serialnumber=(\d+)/);
+    if (collectauraMatch) return collectauraMatch[1];
+
+    return null;
   };
 
+  // Check if serial number is unique
+  const isSerialNumberUnique = (serialNumber) => {
+    return !serialNumbers.includes(serialNumber);
+  };
+
+  // Initialize QR Scanner
   const initializeQrScanner = () => {
     if (videoRef.current) {
       scannerRef.current = new QrScanner(
@@ -43,70 +57,87 @@ const Dashboard = () => {
 
       scannerRef.current.start().catch((error) => {
         console.error('Erreur de démarrage du scanner:', error);
-        setScanError("Impossible de démarrer le scanner QR. Vérifiez les permissions.");
+        setScanMessage("Impossible de démarrer le scanner QR. Vérifiez les permissions.");
+        setScanMessageType('error');
       });
     }
   };
 
-  const handleScanSuccess = (result) => {
-    const scannedData = result.data;
-    console.log('QR Code scanné:', scannedData);
+  // Handle successful QR code scan
+const handleScanSuccess = (result) => {
+  const scannedData = result.data;
+  console.log('QR Code scanné:', scannedData);
 
-    try {
-      // Extraction du numéro de série PSA
-      const serialNumber = extractPSASerialNumber(scannedData);
+  try {
+    // Extract PSA serial number
+    const serialNumber = extractSerialNumber(scannedData);
 
-      if (serialNumber) {
-        // Vérifier si le numéro de série est déjà dans la liste
-        if (!serialNumbers.includes(serialNumber)) {
-          setSerialNumbers(prev => [...prev, serialNumber]);
-          setErrors(prev => [...prev, null]);
+    if (serialNumber) {
+      // Check if serial number is unique
+      if (isSerialNumberUnique(serialNumber)) {
+        setSerialNumbers([serialNumber]);
+        setErrors([null]);
 
-          if (scannerRef.current) {
-            scannerRef.current.stop();
-          }
+        // Success message
+        setScanMessage(`Numéro de série ${serialNumber} ajouté avec succès !`);
+        setScanMessageType('success');
 
-          setShowScanner(false);
-          setScanError(null);
-        } else {
-          setScanError("Ce numéro de série est déjà dans la liste.");
-        }
+        // Automatically clear the success message after 3 seconds
+        setTimeout(() => {
+          setScanMessage(null);
+        }, 3000);
       } else {
-        setScanError("Numéro de série PSA non trouvé.");
+        setScanMessage(`Le numéro de série ${serialNumber} est déjà dans la liste.`);
+        setScanMessageType('error');
       }
-    } catch (error) {
-      console.error('Erreur lors du traitement du QR code:', error);
-      setScanError("Impossible de traiter le QR code.");
+    } else {
+      setScanMessage("Numéro de série PSA non trouvé.");
+      setScanMessageType('error');
     }
-  };
+  } catch (error) {
+    console.error('Erreur lors du traitement du QR code:', error);
+    setScanMessage("Impossible de traiter le QR code.");
+    setScanMessageType('error');
+  }
+};
 
+  // Handle scanner errors
   const handleScanError = (error) => {
     console.error('Erreur de scan:', error);
-    setScanError("Erreur lors de la lecture du QR code.");
+    setScanMessage("Erreur lors de la lecture du QR code.");
+    setScanMessageType('error');
   };
 
+  // Handle manual serial number input changes
   const handleSerialNumberChange = (index, value) => {
     const newSerialNumbers = [...serialNumbers];
     const newErrors = [...errors];
 
     newSerialNumbers[index] = value;
 
-    // Validation : vérifier que le numéro de série est numérique
+    // Validation: check if serial number is numeric
     if (!/^\d*$/.test(value)) {
       newErrors[index] = "Le numéro de série doit être numérique.";
     } else {
-      newErrors[index] = null;
+      // Check if the serial number is unique
+      if (!isSerialNumberUnique(value)) {
+        newErrors[index] = "Ce numéro de série est déjà dans la liste.";
+      } else {
+        newErrors[index] = null;
+      }
     }
 
     setSerialNumbers(newSerialNumbers);
     setErrors(newErrors);
   };
 
+  // Add a new manual serial number input field
   const addManualSerialNumber = () => {
     setSerialNumbers(prev => [...prev, ""]);
     setErrors(prev => [...prev, null]);
   };
 
+  // Remove a serial number input field
   const removeSerialNumberField = (indexToRemove) => {
     setSerialNumbers(prev =>
         prev.filter((_, index) => index !== indexToRemove)
@@ -116,6 +147,7 @@ const Dashboard = () => {
     );
   };
 
+  // Submit handler to generate CSV
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -126,12 +158,19 @@ const Dashboard = () => {
       return;
     }
 
+    // Check for unique serial numbers before submission
+    const uniqueSerialNumbers = [...new Set(validSerialNumbers)];
+    if (uniqueSerialNumbers.length !== validSerialNumbers.length) {
+      alert("Certains numéros de série sont en double. Veuillez les supprimer.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const response = await api.post(
           "/scrape",
-          { serialNumbers: validSerialNumbers },
+          { serialNumbers: uniqueSerialNumbers },
           {
             responseType: "blob",
             headers: {
@@ -170,17 +209,20 @@ const Dashboard = () => {
     }
   };
 
+  // Start QR scanner
   const startQrScanner = () => {
     setShowScanner(true);
+    setScanMessage(null);
     setTimeout(initializeQrScanner, 100);
   };
 
+  // Stop QR scanner
   const stopQrScanner = () => {
     if (scannerRef.current) {
       scannerRef.current.stop();
     }
     setShowScanner(false);
-    setScanError(null);
+    setScanMessage(null);
   };
 
   return (
@@ -203,9 +245,9 @@ const Dashboard = () => {
                   Annuler le scan
                 </button>
               </div>
-              {scanError && (
-                  <div className="error-message">
-                    {scanError}
+              {scanMessage && (
+                  <div className={`message-box ${scanMessageType === 'error' ? 'error-message' : 'success-message'}`}>
+                    {scanMessage}
                   </div>
               )}
             </div>
