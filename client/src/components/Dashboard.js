@@ -64,42 +64,42 @@ const Dashboard = () => {
   };
 
   // Handle successful QR code scan
-const handleScanSuccess = (result) => {
-  const scannedData = result.data;
-  console.log('QR Code scanné:', scannedData);
+  const handleScanSuccess = (result) => {
+    const scannedData = result.data;
+    console.log('QR Code scanné:', scannedData);
 
-  try {
-    // Extract PSA serial number
-    const serialNumber = extractSerialNumber(scannedData);
+    try {
+      // Extract serial number
+      const serialNumber = extractSerialNumber(scannedData);
 
-    if (serialNumber) {
-      // Check if serial number is unique
-      if (isSerialNumberUnique(serialNumber)) {
-        setSerialNumbers([serialNumber]);
-        setErrors([null]);
+      if (serialNumber) {
+        // Check if serial number is unique
+        if (isSerialNumberUnique(serialNumber)) {
+          setSerialNumbers((prevSerialNumbers) => [...prevSerialNumbers, serialNumber]);
+          setErrors((prevErrors) => [...prevErrors, null]);
 
-        // Success message
-        setScanMessage(`Numéro de série ${serialNumber} ajouté avec succès !`);
-        setScanMessageType('success');
+          // Success message
+          setScanMessage(`Numéro de série ${serialNumber} ajouté avec succès !`);
+          setScanMessageType('success');
 
-        // Automatically clear the success message after 3 seconds
-        setTimeout(() => {
-          setScanMessage(null);
-        }, 3000);
+          // Automatically clear the success message after 3 seconds
+          setTimeout(() => {
+            setScanMessage(null);
+          }, 3000);
+        } else {
+          setScanMessage(`Le numéro de série ${serialNumber} est déjà dans la liste.`);
+          setScanMessageType('error');
+        }
       } else {
-        setScanMessage(`Le numéro de série ${serialNumber} est déjà dans la liste.`);
+        setScanMessage("Numéro de série non trouvé dans le QR code.");
         setScanMessageType('error');
       }
-    } else {
-      setScanMessage("Numéro de série PSA non trouvé.");
+    } catch (error) {
+      console.error('Erreur lors du traitement du QR code:', error);
+      setScanMessage("Impossible de traiter le QR code.");
       setScanMessageType('error');
     }
-  } catch (error) {
-    console.error('Erreur lors du traitement du QR code:', error);
-    setScanMessage("Impossible de traiter le QR code.");
-    setScanMessageType('error');
-  }
-};
+  };
 
   // Handle scanner errors
   const handleScanError = (error) => {
@@ -133,16 +133,16 @@ const handleScanSuccess = (result) => {
 
   // Add a new manual serial number input field
   const addManualSerialNumber = () => {
-    setSerialNumbers(prev => [...prev, ""]);
-    setErrors(prev => [...prev, null]);
+    setSerialNumbers((prev) => [...prev, ""]);
+    setErrors((prev) => [...prev, null]);
   };
 
   // Remove a serial number input field
   const removeSerialNumberField = (indexToRemove) => {
-    setSerialNumbers(prev =>
+    setSerialNumbers((prev) =>
         prev.filter((_, index) => index !== indexToRemove)
     );
-    setErrors(prev =>
+    setErrors((prev) =>
         prev.filter((_, index) => index !== indexToRemove)
     );
   };
@@ -246,7 +246,11 @@ const handleScanSuccess = (result) => {
                 </button>
               </div>
               {scanMessage && (
-                  <div className={`message-box ${scanMessageType === 'error' ? 'error-message' : 'success-message'}`}>
+                  <div
+                      className={`message-box ${
+                          scanMessageType === 'error' ? 'error-message' : 'success-message'
+                      }`}
+                  >
                     {scanMessage}
                   </div>
               )}
