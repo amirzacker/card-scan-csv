@@ -1,7 +1,10 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-require("dotenv").config();
+// index.js
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+require('dotenv').config();
+
+const { scrapeAndExport } = require('./controllers/scraperController');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -9,9 +12,7 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
+// Route pour lancer le scraping
+app.post('/scrape', scrapeAndExport);
 
-app.get("/", async (req, res) => {
-  res.status(200).json({ success: "Hello word" });
-});
-
-app.listen(port, () => console.log(`Server running on port ${port}`));
+app.listen(port, () => console.log(`Serveur en cours d'exécution sur le port ${port}`));
