@@ -1,4 +1,3 @@
-// Dashboard.js
 import React, { useState, useEffect, useRef } from "react";
 import api from "../api";
 import './style.css';
@@ -11,115 +10,115 @@ const Dashboard = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [scanError, setScanError] = useState(null);
 
-  // Références pour le scanner QR
-  const scannerRef = useRef(null);
   const videoRef = useRef(null);
-  const [qrOn, setQrOn] = useState(true);
-
-  // Fonction appelée lorsqu'un QR code est détecté
-  const onScanSuccess = (result) => {
-    if (result) {
-      const data = result.data;
-      // Extraire le numéro de série depuis l'URL du QR code
-      try {
-        const url = new URL(data);
-        const serial = url.searchParams.get('serialnumber');
-        if (serial) {
-          if (!serialNumbers.includes(serial)) {
-            setSerialNumbers([...serialNumbers, serial]);
-            setErrors([...errors, null]);
-            setShowScanner(false);
-            setScanError(null);
-          } else {
-            setScanError("Ce numéro de série est déjà dans la liste.");
-          }
-        } else {
-          setScanError("Le QR code ne contient pas de numéro de série valide.");
-        }
-      } catch (error) {
-        setScanError("Le QR code n'est pas une URL valide.");
-      }
-    }
-  };
-
-  // Fonction appelée en cas d'échec du scan
-  const onScanFail = (error) => {
-    console.error(error);
-    setScanError("Erreur lors de la lecture du QR code.");
-  };
+  const scannerRef = useRef(null);
 
   useEffect(() => {
-    if (showScanner && videoRef.current) {
-      // Instancier le scanner QR
-      scannerRef.current = new QrScanner(
-          videoRef.current,
-          onScanSuccess,
-          {
-            onDecodeError: onScanFail,
-            highlightScanRegion: true,
-            preferredCamera: 'environment', // Utiliser la caméra arrière
-          }
-      );
-
-      // Démarrer le scanner QR
-      scannerRef.current.start().catch((err) => {
-        console.error(err);
-        setQrOn(false);
-      });
-    }
-
-    // Nettoyer à la fermeture du scanner
     return () => {
       if (scannerRef.current) {
         scannerRef.current.stop();
         scannerRef.current.destroy();
-        scannerRef.current = null;
       }
     };
-  }, [showScanner]);
+  }, []);
 
-  useEffect(() => {
-    if (!qrOn) {
-      alert(
-          "La caméra est bloquée ou inaccessible. Veuillez autoriser l'accès à la caméra dans les permissions de votre navigateur et recharger la page."
+  const extractPSASerialNumber = (url) => {
+    // Extraction du numéro de série pour les URL PSA
+    const psaMatch = url.match(/\/cert\/(\d+)\/?/);
+    return psaMatch ? psaMatch[1] : null;
+  };
+
+  const initializeQrScanner = () => {
+    if (videoRef.current) {
+      scannerRef.current = new QrScanner(
+          videoRef.current,
+          handleScanSuccess,
+          {
+            onDecodeError: handleScanError,
+            preferredCamera: 'environment',
+            highlightScanRegion: true,
+            returnDetailedScanResult: true,
+          }
       );
+
+      scannerRef.current.start().catch((error) => {
+        console.error('Erreur de démarrage du scanner:', error);
+        setScanError("Impossible de démarrer le scanner QR. Vérifiez les permissions.");
+      });
     }
-  }, [qrOn]);
+  };
+
+  const handleScanSuccess = (result) => {
+    const scannedData = result.data;
+    console.log('QR Code scanné:', scannedData);
+
+    try {
+      // Extraction du numéro de série PSA
+      const serialNumber = extractPSASerialNumber(scannedData);
+
+      if (serialNumber) {
+        // Vérifier si le numéro de série est déjà dans la liste
+        if (!serialNumbers.includes(serialNumber)) {
+          setSerialNumbers(prev => [...prev, serialNumber]);
+          setErrors(prev => [...prev, null]);
+
+          if (scannerRef.current) {
+            scannerRef.current.stop();
+          }
+
+          setShowScanner(false);
+          setScanError(null);
+        } else {
+          setScanError("Ce numéro de série est déjà dans la liste.");
+        }
+      } else {
+        setScanError("Numéro de série PSA non trouvé.");
+      }
+    } catch (error) {
+      console.error('Erreur lors du traitement du QR code:', error);
+      setScanError("Impossible de traiter le QR code.");
+    }
+  };
+
+  const handleScanError = (error) => {
+    console.error('Erreur de scan:', error);
+    setScanError("Erreur lors de la lecture du QR code.");
+  };
 
   const handleSerialNumberChange = (index, value) => {
     const newSerialNumbers = [...serialNumbers];
+    const newErrors = [...errors];
+
     newSerialNumbers[index] = value;
 
-    // Validation : vérifiez que le numéro de série est numérique
-    const newErrors = [...errors];
+    // Validation : vérifier que le numéro de série est numérique
     if (!/^\d*$/.test(value)) {
       newErrors[index] = "Le numéro de série doit être numérique.";
     } else {
       newErrors[index] = null;
     }
-    setErrors(newErrors);
 
     setSerialNumbers(newSerialNumbers);
-  };
-
-  const addSerialNumberField = () => {
-    setSerialNumbers([...serialNumbers, ""]);
-    setErrors([...errors, null]);
-  };
-
-  const removeSerialNumberField = (index) => {
-    const newSerialNumbers = [...serialNumbers];
-    const newErrors = [...errors];
-    newSerialNumbers.splice(index, 1);
-    newErrors.splice(index, 1);
-    setSerialNumbers(newSerialNumbers);
     setErrors(newErrors);
+  };
+
+  const addManualSerialNumber = () => {
+    setSerialNumbers(prev => [...prev, ""]);
+    setErrors(prev => [...prev, null]);
+  };
+
+  const removeSerialNumberField = (indexToRemove) => {
+    setSerialNumbers(prev =>
+        prev.filter((_, index) => index !== indexToRemove)
+    );
+    setErrors(prev =>
+        prev.filter((_, index) => index !== indexToRemove)
+    );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Filtrer les numéros de série non vides
     const validSerialNumbers = serialNumbers.filter((num) => num.trim() !== "");
 
     if (validSerialNumbers.length === 0) {
@@ -141,15 +140,12 @@ const Dashboard = () => {
           }
       );
 
-      // Créer un objet URL pour le blob
       const blob = new Blob([response.data], { type: "text/csv;charset=utf-8;" });
       const url = window.URL.createObjectURL(blob);
 
-      // Créer un lien pour le téléchargement
       const link = document.createElement("a");
       link.href = url;
 
-      // Extraire le nom du fichier des en-têtes de la réponse
       const contentDisposition = response.headers["content-disposition"];
       let fileName = "cartes_pokemon.csv";
       if (contentDisposition) {
@@ -174,46 +170,94 @@ const Dashboard = () => {
     }
   };
 
+  const startQrScanner = () => {
+    setShowScanner(true);
+    setTimeout(initializeQrScanner, 100);
+  };
+
+  const stopQrScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+    }
+    setShowScanner(false);
+    setScanError(null);
+  };
+
   return (
-      <div>
-        <h2>Carte Pokémon</h2>
+      <div className="dashboard-container">
+        <h2>Carte Pokémon - Numéros de Série</h2>
 
         {showScanner ? (
-            <div className="qr-reader">
-              <video ref={videoRef} style={{ width: '100%' }} />
-              <button type="button" onClick={() => setShowScanner(false)}>
-                Annuler le scan
-              </button>
-              {scanError && <div className="error">{scanError}</div>}
+            <div className="qr-scanner-container">
+              <video
+                  ref={videoRef}
+                  style={{ width: '100%', maxWidth: '500px' }}
+                  className="qr-scanner-video"
+              />
+              <div className="scanner-controls">
+                <button
+                    type="button"
+                    onClick={stopQrScanner}
+                    className="cancel-scan-button"
+                >
+                  Annuler le scan
+                </button>
+              </div>
+              {scanError && (
+                  <div className="error-message">
+                    {scanError}
+                  </div>
+              )}
             </div>
         ) : (
-            <form onSubmit={handleSubmit}>
-              {serialNumbers.map((serial, index) => (
-                  <div key={index} className="serial-number-field">
-                    <input
-                        type="text"
-                        placeholder="Numéro de série"
-                        value={serial}
-                        onChange={(e) => handleSerialNumberChange(index, e.target.value)}
-                    />
-                    <button
-                        type="button"
-                        onClick={() => removeSerialNumberField(index)}
-                    >
-                      Supprimer
-                    </button>
-                    {errors[index] && <div className="error">{errors[index]}</div>}
-                  </div>
-              ))}
-              <button type="button" onClick={addSerialNumberField}>
-                Ajouter un autre numéro
-              </button>
-              <button type="button" onClick={() => setShowScanner(true)}>
-                Scanner un QR code
-              </button>
-              <button type="submit" disabled={isLoading}>
-                {isLoading ? "Génération en cours..." : "Générer le CSV"}
-              </button>
+            <form onSubmit={handleSubmit} className="serial-number-form">
+              <div className="serial-numbers-list">
+                {serialNumbers.map((serial, index) => (
+                    <div key={index} className="serial-number-field">
+                      <input
+                          type="text"
+                          placeholder="Numéro de série"
+                          value={serial}
+                          onChange={(e) => handleSerialNumberChange(index, e.target.value)}
+                          className="serial-number-input"
+                      />
+                      <button
+                          type="button"
+                          onClick={() => removeSerialNumberField(index)}
+                          className="remove-field-button"
+                      >
+                        ✖
+                      </button>
+                      {errors[index] && (
+                          <div className="error-message">{errors[index]}</div>
+                      )}
+                    </div>
+                ))}
+              </div>
+
+              <div className="form-actions">
+                <button
+                    type="button"
+                    onClick={addManualSerialNumber}
+                    className="add-serial-button"
+                >
+                  Ajouter un numéro manuellement
+                </button>
+                <button
+                    type="button"
+                    onClick={startQrScanner}
+                    className="scan-qr-button"
+                >
+                  Scanner QR code PSA
+                </button>
+                <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="generate-csv-button"
+                >
+                  {isLoading ? "Génération en cours..." : "Générer le CSV"}
+                </button>
+              </div>
             </form>
         )}
 
